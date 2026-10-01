@@ -1,7 +1,5 @@
 {
-    servers {
-        default_sni {$REMOTE_RS_HOST}
-    }
+    default_sni {$REMOTE_RS_HOST}
 }
 
 https://{$REMOTE_RS_HOST}:8443 {
