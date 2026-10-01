@@ -1,3 +1,9 @@
+{
+    servers {
+        default_sni {$REMOTE_RS_HOST}
+    }
+}
+
 https://{$REMOTE_RS_HOST}:8443 {
     tls internal
     encode zstd gzip
