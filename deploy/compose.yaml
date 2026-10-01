@@ -1,0 +1,43 @@
+name: remote-rs
+
+services:
+  api:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      HOST: 0.0.0.0
+      NODE_ENV: production
+    restart: unless-stopped
+    volumes:
+      - remote-rs-data:/app/data
+    networks:
+      - remote-rs-internal
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    environment:
+      REMOTE_RS_HOST: ${REMOTE_RS_HOST}
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    depends_on:
+      - api
+    networks:
+      - remote-rs-internal
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+networks:
+  remote-rs-internal:
+    name: remote-rs-internal
+
+volumes:
+  remote-rs-data:
+  caddy-data:
+  caddy-config:

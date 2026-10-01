@@ -1,0 +1,9 @@
+app/node_modules/
+app/dist/
+server/node_modules/
+server/data/
+server/*.log
+deploy/.env
+poc/
+AGENTS.md
+SUMMARY.md

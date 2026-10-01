@@ -1,0 +1,17 @@
+https://{$REMOTE_RS_HOST}:8443 {
+    tls internal
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "no-referrer"
+    }
+
+    @api path /api/*
+    reverse_proxy @api api:3000
+
+    root * /srv
+    try_files {path} /index.html
+    file_server
+}
