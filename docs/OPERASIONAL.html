@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <title>Panduan Operasional Remote RS</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #17211b; font: 10.5pt/1.48 Arial, sans-serif; }
+    h1 { margin: 0 0 8px; font-size: 25pt; color: #096b36; }
+    h2 { margin: 22px 0 7px; padding-bottom: 4px; border-bottom: 1px solid #cbd7cf; font-size: 15pt; color: #155b35; break-after: avoid; }
+    h3 { margin: 15px 0 5px; font-size: 12pt; break-after: avoid; }
+    p { margin: 5px 0 9px; }
+    ul, ol { margin: 5px 0 10px 21px; padding: 0; }
+    li { margin: 2px 0; }
+    code { font: 9pt Consolas, monospace; background: #edf3ef; padding: 1px 3px; }
+    pre { margin: 7px 0 12px; padding: 10px; overflow-wrap: anywhere; white-space: pre-wrap; border-left: 3px solid #4bc77c; background: #f1f5f2; font: 8.4pt/1.42 Consolas, monospace; break-inside: avoid; }
+    .cover { min-height: 238mm; display: flex; flex-direction: column; justify-content: center; border-left: 9px solid #45cf79; padding-left: 24px; page-break-after: always; }
+    .cover p { max-width: 520px; color: #536158; font-size: 12pt; }
+    .badge { width: max-content; margin-bottom: 18px; padding: 5px 9px; background: #dff7e8; color: #096b36; font-size: 9pt; font-weight: bold; letter-spacing: .14em; }
+    .note { padding: 9px 11px; border: 1px solid #d2ddd6; background: #f8faf8; break-inside: avoid; }
+    .warning { padding: 9px 11px; border-left: 4px solid #c73d3d; background: #fff1f1; break-inside: avoid; }
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="badge">REMOTE RS</div>
+    <h1>Panduan Operasional</h1>
+    <p>Dashboard remote desktop berbasis React, Fastify, noVNC, TightVNC, Caddy, dan Docker Compose.</p>
+    <p><strong>Versi 1.0</strong><br>Dokumen untuk tim IT internal.</p>
+  </section>
+
+  <h2>1. Tujuan dan Arsitektur</h2>
+  <p>Remote RS menyediakan dashboard web untuk memantau dan mengendalikan komputer Windows yang sudah menjalankan TightVNC Server. Endpoint tidak memerlukan agent baru.</p>
+  <pre>Browser IT LAN/VPN
+  - HTTPS/WSS TCP 8443
+  - Caddy + dashboard React
+  - Fastify WebSocket gateway
+  - TightVNC endpoint TCP 5900</pre>
+  <p>Stack Docker hanya mempublikasikan TCP 8443. API TCP 3000 hanya tersedia di network Docker internal sehingga tidak mengganggu aplikasi host lain.</p>
+
+  <h2>2. Batasan POC</h2>
+  <ul>
+    <li>Inventory, user, dan audit disimpan sebagai JSON pada volume <code>remote-rs_remote-rs-data</code>.</li>
+    <li>Maksimal 16 koneksi VNC aktif per halaman, dengan pilihan 2 sampai 5 kolom.</li>
+    <li>Grid normal view-only. Kontrol aktif hanya saat fullscreen.</li>
+    <li>Password VNC dimasukkan manual dan hanya berada di memori browser selama sesi.</li>
+    <li>File transfer, terminal, monitoring resource, dan alert belum tersedia.</li>
+    <li>Sebelum rollout besar, migrasikan data ke PostgreSQL dan lakukan load test.</li>
+  </ul>
+
+  <h2>3. Prasyarat</h2>
+  <ul>
+    <li>Ubuntu, Docker Engine, Docker Compose, dan Git.</li>
+    <li>TCP 8443 kosong pada server.</li>
+    <li>Server dapat mengakses endpoint TightVNC pada TCP 5900.</li>
+    <li>Client IT dapat mengakses TCP 8443 melalui LAN atau VPN.</li>
+  </ul>
+  <pre>docker --version
+docker compose version
+sudo ss -ltnp 'sport = :8443'</pre>
+
+  <h2>4. Instalasi</h2>
+  <pre>git clone https://github.com/andikafadil28/RemotNoVNC.git ~/remote-rs
+cd ~/remote-rs
+cp deploy/.env.example deploy/.env
+chmod 600 deploy/.env
+nano deploy/.env</pre>
+  <p>Isi <code>REMOTE_RS_HOST</code>, <code>ADMIN_USERNAME</code>, dan <code>ADMIN_PASSWORD</code>. Gunakan password unik minimal 10 karakter.</p>
+  <div class="warning"><strong>Jangan</strong> commit, screenshot, atau kirim isi <code>deploy/.env</code> melalui chat.</div>
+  <pre>docker compose -f deploy/compose.yaml up -d --build
+docker compose -f deploy/compose.yaml ps</pre>
+  <p>Status service <code>api</code> dan <code>web</code> harus <code>Up</code>.</p>
+
+  <h2>5. Firewall dan HTTPS</h2>
+  <p>Buka TCP 8443 hanya untuk subnet admin yang disetujui:</p>
+  <pre>sudo ufw allow from &lt;subnet-admin&gt;/24 to any port 8443 proto tcp
+sudo ufw status verbose</pre>
+  <p>Export root certificate Caddy:</p>
+  <pre>cd ~/remote-rs
+docker cp remote-rs-web-1:/data/caddy/pki/authorities/local/root.crt ./remote-rs-root.crt
+chmod 600 remote-rs-root.crt</pre>
+  <p>Import pada Windows Current User ke Trusted Root Certification Authorities:</p>
+  <pre>certutil -user -addstore Root "$env:USERPROFILE\Downloads\remote-rs-root.crt"</pre>
+  <div class="warning">Jangan gunakan HTTP. Dashboard membawa kredensial, layar desktop, keyboard, mouse, clipboard, dan kemungkinan data pasien.</div>
+
+  <h2>6. Hak Akses</h2>
+  <p><strong>Admin:</strong> scan VNC, CRUD endpoint, buat akun, dan lihat audit.</p>
+  <p><strong>Teknisi:</strong> lihat status dan membuka remote desktop.</p>
+  <p>Gunakan akun personal. Hindari akun bersama untuk penggunaan production.</p>
+
+  <h2>7. Inventory dan Remote</h2>
+  <ol>
+    <li>Scan subnet atau tambah endpoint manual.</li>
+    <li>Isi nama PC, group, lokasi, dan IP privat.</li>
+    <li>Pilih group dan masukkan password VNC pada tile.</li>
+    <li>Gunakan grid untuk pantau.</li>
+    <li>Klik Fullscreen untuk kontrol mouse dan keyboard.</li>
+    <li>Tekan Esc untuk kembali ke mode pantau.</li>
+    <li>Klik Reconnect jika sesi terputus.</li>
+  </ol>
+  <p>Token remote sekali pakai, terikat session user, dan kedaluwarsa dalam waktu singkat.</p>
+
+  <h2>8. Operasi Harian</h2>
+  <pre>cd ~/remote-rs
+docker compose -f deploy/compose.yaml ps
+docker compose -f deploy/compose.yaml logs --tail=100
+docker compose -f deploy/compose.yaml restart</pre>
+  <p>Container memakai <code>restart: unless-stopped</code>. Container otomatis aktif setelah reboot kecuali sebelumnya dihentikan manual.</p>
+  <pre>sudo systemctl enable --now docker
+systemctl is-enabled docker</pre>
+
+  <h2>9. Update</h2>
+  <p>Lakukan backup sebelum update.</p>
+  <pre>cd ~/remote-rs
+git pull --ff-only
+docker compose -f deploy/compose.yaml up -d --build
+docker compose -f deploy/compose.yaml ps</pre>
+  <p>Setelah update, verifikasi login, status, remote desktop, fullscreen, reconnect, dan audit.</p>
+
+  <h2>10. Backup</h2>
+  <pre>mkdir -p ~/remote-rs-backup
+docker run --rm \
+  -v remote-rs_remote-rs-data:/data:ro \
+  -v ~/remote-rs-backup:/backup \
+  alpine sh -c 'tar czf /backup/remote-rs-data-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .'
+
+cp ~/remote-rs/deploy/.env ~/remote-rs-backup/deploy.env.backup
+chmod 600 ~/remote-rs-backup/deploy.env.backup</pre>
+  <p>Simpan backup terenkripsi di lokasi terpisah dan uji restore berkala.</p>
+
+  <h2>11. Restore</h2>
+  <div class="warning"><strong>Peringatan:</strong> restore mengganti data aktif. Pastikan file backup benar dan stack API dihentikan.</div>
+  <pre>cd ~/remote-rs
+docker compose -f deploy/compose.yaml stop api
+docker run --rm \
+  -v remote-rs_remote-rs-data:/data \
+  -v ~/remote-rs-backup:/backup \
+  alpine sh -c 'rm -rf /data/* &amp;&amp; tar xzf /backup/&lt;nama-backup&gt;.tar.gz -C /data'
+docker compose -f deploy/compose.yaml start api</pre>
+
+  <div class="page-break"></div>
+  <h2>12. Troubleshooting</h2>
+  <h3>Dashboard tidak dapat dibuka</h3>
+  <pre>docker compose -f deploy/compose.yaml ps
+sudo ss -ltnp 'sport = :8443'
+sudo ufw status verbose
+docker compose -f deploy/compose.yaml logs --tail=100 web</pre>
+
+  <h3>Login gagal</h3>
+  <pre>docker compose -f deploy/compose.yaml logs --tail=100 api
+docker compose -f deploy/compose.yaml exec web wget -S -O- http://api:3000/api/auth/session</pre>
+  <p>Respons <code>401 Unauthorized</code> berarti API hidup dan meminta login.</p>
+
+  <h3>Status Unknown atau remote terputus</h3>
+  <ul>
+    <li>Cek container API dan endpoint TCP 5900.</li>
+    <li>Pastikan firewall endpoint mengizinkan IP server dashboard.</li>
+    <li>Klik Reconnect dan lihat audit terakhir.</li>
+    <li><code>remote.failed</code>: gagal membentuk koneksi.</li>
+    <li><code>remote.closed.client</code>: browser menutup sesi.</li>
+    <li><code>remote.closed.endpoint</code>: endpoint atau jaringan menutup sesi.</li>
+  </ul>
+
+  <h3>Container web Restarting</h3>
+  <pre>docker compose -f deploy/compose.yaml logs --tail=100 web</pre>
+  <p>Periksa syntax Caddy dan nilai <code>REMOTE_RS_HOST</code>, lalu rebuild.</p>
+
+  <h2>13. Security Checklist</h2>
+  <ul>
+    <li>Akun personal dan password unik.</li>
+    <li>TCP 8443 hanya untuk LAN admin atau VPN.</li>
+    <li>TCP 5900 endpoint hanya dari server dashboard.</li>
+    <li>Jangan publish .env, inventory, audit, atau data user.</li>
+    <li>Jangan abaikan warning certificate.</li>
+    <li>Review audit dan backup rutin.</li>
+    <li>Gunakan MFA dan PostgreSQL sebelum rollout luas.</li>
+    <li>Hindari screenshot data pasien pada kanal publik.</li>
+  </ul>
+
+  <h2>14. Data Insiden</h2>
+  <p>Catat waktu kejadian, username teknisi, endpoint target, action audit terakhir, status container, dan log relevan. Jangan sertakan password atau data pasien.</p>
+
+</body>
+</html>

@@ -1,5 +1,7 @@
 # Remote RS Ubuntu POC
 
+Dokumentasi operasional lengkap tersedia di `docs/OPERASIONAL.md` dan `docs/OPERASIONAL.pdf`.
+
 This Compose stack is isolated from existing applications. It only publishes TCP 8443. It does not use ports 85 or 3001.
 
 ## Prerequisites
